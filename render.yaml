@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: url-shortener
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci
+    startCommand: npm start
+    # /health returns 503 unless Postgres answers, so a broken deploy is caught
+    # here rather than by the first user.
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: url-shortener-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: url-shortener-cache
+          property: connectionString
+      # Stable across restarts so unique-visitor counts stay comparable; a
+      # per-process random salt would re-bucket every visitor on each deploy.
+      - key: VISITOR_SALT
+        generateValue: true
+      # BASE_URL is intentionally unset: config.js falls back to
+      # RENDER_EXTERNAL_URL, which Render populates with the live service URL.
+
+  - type: keyvalue
+    name: url-shortener-cache
+    plan: free
+    region: singapore
+    # Reachable only from services inside this Render workspace.
+    ipAllowList: []
+    # Free Key Value has no disk persistence — a restart drops every key. That
+    # is survivable by design here: the cache is rebuilt from Postgres on the
+    # next request, and a reset rate-limit window only forgives past requests.
+    maxmemoryPolicy: allkeys-lru
+
+databases:
+  - name: url-shortener-db
+    plan: free
+    region: singapore

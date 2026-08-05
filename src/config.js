@@ -10,7 +10,12 @@ function int(name, fallback) {
 
 export const config = {
   port: int('PORT', 3000),
-  baseUrl: (process.env.BASE_URL || 'http://localhost:3000').replace(/\/+$/, ''),
+  // RENDER_EXTERNAL_URL is injected by Render with the live service URL, so a
+  // deploy produces correct short URLs without hardcoding the host anywhere.
+  baseUrl: (process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000').replace(
+    /\/+$/,
+    '',
+  ),
   databaseUrl: process.env.DATABASE_URL || 'postgres://shortener:shortener@localhost:5432/shortener',
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
   cacheTtlSeconds: int('CACHE_TTL_SECONDS', 3600),

@@ -77,6 +77,35 @@ curl -s localhost:3000/api/links/launch/analytics
 
 Errors are uniform: `{"error": {"code": "bad_request", "message": "..."}}`.
 
+## Deploying to Render
+
+[render.yaml](render.yaml) is a Blueprint that provisions all three pieces — the
+web service, a managed Postgres, and a Key Value (Redis) instance — wired
+together. In the Render dashboard: **New → Blueprint**, point it at this repo,
+apply.
+
+Nothing needs configuring by hand. `DATABASE_URL` and `REDIS_URL` come from the
+provisioned instances, `VISITOR_SALT` is generated once and kept stable across
+restarts, and `BASE_URL` falls back to `RENDER_EXTERNAL_URL` so short URLs carry
+the live hostname. The schema is applied on boot, so there is no migration step.
+
+Everything is on free plans, which carry three caveats worth knowing before you
+show it to anyone:
+
+- **Free Postgres expires 30 days after creation** (then a 14-day grace period).
+  This is the one that bites: the demo link dies a month after you deploy it.
+  Upgrading the database to a paid instance is the fix.
+- **Free web services spin down after 15 minutes of inactivity**, so the first
+  request after a quiet spell takes ~30s to cold-start.
+- **Free Key Value has no persistence** — a restart drops every key, and only
+  one free instance is allowed per workspace. Harmless here by design: the cache
+  refills from Postgres on the next request, and a cleared rate-limit window
+  only forgives requests that already happened.
+
+`region: singapore` is set for latency from India; change all three entries
+together if you want it elsewhere, since cross-region internal connections
+aren't allowed.
+
 ## Design notes
 
 **Short-code generation.** Codes are 7 random base62 characters (~3.5 × 10¹²
