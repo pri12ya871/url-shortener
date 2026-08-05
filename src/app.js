@@ -1,9 +1,13 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { linksRouter } from './routes/links.js';
 import { redirectRouter } from './routes/redirect.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { pool } from './db/pool.js';
 import { redis } from './cache/redis.js';
+
+const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 
 export function createApp() {
   const app = express();
@@ -25,7 +29,15 @@ export function createApp() {
   });
 
   app.use('/api', linksRouter);
-  // Registered last: the catch-all /:code must not shadow /api or /health.
+
+  // The UI is served from an explicit /static prefix rather than mounted at the
+  // root: a root mount would stat the filesystem on every /:code request just to
+  // miss, putting disk I/O on the redirect path. "static" is already a reserved
+  // code, so no alias can ever shadow it.
+  app.use('/static', express.static(PUBLIC_DIR, { index: false, maxAge: '1h' }));
+  app.get('/', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
+
+  // Registered last: the catch-all /:code must not shadow /api, /health or /static.
   app.use('/', redirectRouter);
 
   app.use(notFoundHandler);

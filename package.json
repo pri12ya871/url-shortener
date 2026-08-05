@@ -8,6 +8,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
+    "ui": "node scripts/ui.js",
     "migrate": "node src/db/migrate.js",
     "test": "node --test \"test/*.test.js\""
   },

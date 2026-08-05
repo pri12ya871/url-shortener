@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Snip — URL shortener with real click analytics</title>
+  <meta name="description" content="A fast URL shortener with cache-aside reads, off-path click analytics and graceful degradation." />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🔗</text></svg>" />
+</head>
+<body>
+  <!-- ambient layers -->
+  <div class="aurora" aria-hidden="true">
+    <span class="blob blob-1"></span>
+    <span class="blob blob-2"></span>
+    <span class="blob blob-3"></span>
+  </div>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="pointer-glow" id="pointerGlow" aria-hidden="true"></div>
+  <div class="scroll-progress" id="scrollProgress" aria-hidden="true"></div>
+
+  <!-- ───────────────────────── nav ───────────────────────── -->
+  <header class="nav" id="nav">
+    <a class="brand" href="#top">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M13 19a5 5 0 0 0 7 0l4-4a5 5 0 0 0-7-7l-2 2" />
+        <path d="M19 13a5 5 0 0 0-7 0l-4 4a5 5 0 0 0 7 7l2-2" />
+      </svg>
+      <span>snip<em>.</em></span>
+    </a>
+    <nav class="nav-links">
+      <a href="#shorten">Shorten</a>
+      <a href="#dashboard">Analytics</a>
+      <a href="#how">How it works</a>
+    </nav>
+    <div class="nav-actions">
+      <span class="pill pill-status" id="apiStatus" title="Backend connectivity">
+        <i class="dot"></i><span id="apiStatusText">checking…</span>
+      </span>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle colour theme">
+        <svg viewBox="0 0 24 24" class="theme-icon" aria-hidden="true">
+          <circle cx="12" cy="12" r="5" class="sun-core" />
+          <g class="sun-rays">
+            <line x1="12" y1="1"  x2="12" y2="4" /><line x1="12" y1="20" x2="12" y2="23" />
+            <line x1="1"  y1="12" x2="4"  y2="12" /><line x1="20" y1="12" x2="23" y2="12" />
+            <line x1="4.2" y1="4.2"  x2="6.3"  y2="6.3"  /><line x1="17.7" y1="17.7" x2="19.8" y2="19.8" />
+            <line x1="4.2" y1="19.8" x2="6.3"  y2="17.7" /><line x1="17.7" y1="6.3"  x2="19.8" y2="4.2" />
+          </g>
+          <path class="moon" d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- ───────────────────────── hero ───────────────────────── -->
+    <section class="hero">
+      <div class="hero-inner">
+        <span class="eyebrow reveal">
+          <i class="spark"></i> 302 redirects · cache-aside reads · analytics off the hot path
+        </span>
+
+        <h1 class="hero-title">
+          <span class="line">
+            <span class="word" style="--i:0">Long</span>
+            <span class="word" style="--i:1">links,</span>
+          </span>
+          <span class="line">
+            <span class="word grad" style="--i:2">measured</span>
+            <span class="word" style="--i:3">short.</span>
+          </span>
+        </h1>
+
+        <p class="hero-sub reveal" style="--d:520ms">
+          Paste a URL. Get a seven-character code backed by Postgres, served from Redis,
+          and instrumented so every click tells you something.
+        </p>
+
+        <!-- shorten card -->
+        <div class="shorten-card reveal" id="shorten" style="--d:640ms">
+          <form id="shortenForm" autocomplete="off" novalidate>
+            <div class="field">
+              <span class="field-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
+              </span>
+              <input
+                id="urlInput" name="url" type="url" spellcheck="false"
+                placeholder="https://your-very-long-url.example.com/path?with=params"
+                aria-label="URL to shorten" required />
+              <button class="btn btn-primary magnetic" id="submitBtn" type="submit">
+                <span class="btn-label">Shorten</span>
+                <span class="btn-spinner" aria-hidden="true"></span>
+                <svg class="btn-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13m-5-6 6 6-6 6"/></svg>
+              </button>
+            </div>
+
+            <button class="adv-toggle" type="button" id="advToggle" aria-expanded="false">
+              <svg viewBox="0 0 24 24" class="chev" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+              Advanced
+            </button>
+
+            <div class="advanced" id="advanced">
+              <div class="advanced-inner">
+                <label class="mini-field">
+                  <span>Custom code</span>
+                  <input id="codeInput" type="text" placeholder="my-launch" pattern="[A-Za-z0-9_-]{3,32}" />
+                  <small>3–32 chars of A–Z a–z 0–9 _ -</small>
+                </label>
+                <label class="mini-field">
+                  <span>Expires at</span>
+                  <input id="expiresInput" type="datetime-local" />
+                  <small>Optional. Cached no longer than its own expiry.</small>
+                </label>
+              </div>
+            </div>
+          </form>
+
+          <!-- result -->
+          <div class="result" id="result" hidden>
+            <div class="result-burst" aria-hidden="true"></div>
+            <div class="result-row">
+              <div class="result-main">
+                <span class="result-label">Your short link</span>
+                <a class="result-url" id="resultUrl" href="#" target="_blank" rel="noopener"></a>
+                <span class="result-target" id="resultTarget"></span>
+              </div>
+              <div class="result-actions">
+                <button class="btn btn-ghost copy-btn" id="copyBtn" type="button">
+                  <svg class="ico-copy" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                  <svg class="ico-check" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 12 5 5L20 6"/></svg>
+                  <span class="copy-label">Copy</span>
+                </button>
+                <button class="btn btn-ghost" id="statsBtn" type="button">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10m6 10V4m6 16v-7"/></svg>
+                  Analytics
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- stat strip -->
+        <ul class="stat-strip reveal" style="--d:760ms">
+          <li class="stat">
+            <span class="stat-num" data-count="3.5" data-decimals="1" data-suffix="×10¹²">0</span>
+            <span class="stat-label">codes in the 7-char space</span>
+          </li>
+          <li class="stat">
+            <span class="stat-num" data-count="302">0</span>
+            <span class="stat-label">redirect status, never 301</span>
+          </li>
+          <li class="stat">
+            <span class="stat-num" data-count="0" data-literal="~0ms">0</span>
+            <span class="stat-label">analytics cost on the hot path</span>
+          </li>
+          <li class="stat">
+            <span class="stat-num" data-count="100" data-suffix="%">0</span>
+            <span class="stat-label">uptime when Redis is down</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="scroll-cue" aria-hidden="true"><span></span></div>
+    </section>
+
+    <!-- ───────────────────────── dashboard ───────────────────────── -->
+    <section class="section" id="dashboard">
+      <div class="section-head reveal">
+        <span class="kicker">Analytics</span>
+        <h2>Every click, accounted for.</h2>
+        <p>Clicks are written <em>after</em> the 302 is on the wire, so measurement never slows the redirect down.</p>
+      </div>
+
+      <div class="dash reveal" style="--d:120ms">
+        <div class="dash-toolbar">
+          <div class="lookup">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="lookupInput" type="text" placeholder="Enter a short code…" spellcheck="false" />
+            <button class="btn btn-small" id="lookupBtn" type="button">Load</button>
+          </div>
+          <div class="range" role="group" aria-label="Time range">
+            <button class="range-btn" data-days="7">7d</button>
+            <button class="range-btn is-active" data-days="30">30d</button>
+            <button class="range-btn" data-days="90">90d</button>
+            <span class="range-ink" id="rangeInk"></span>
+          </div>
+        </div>
+
+        <div class="dash-body" id="dashBody">
+          <!-- totals -->
+          <div class="tiles">
+            <article class="tile">
+              <header><span>Total clicks</span><i class="tile-ico">◎</i></header>
+              <strong class="tile-num" id="tTotal">0</strong>
+              <svg class="spark" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true"><path id="sparkTotal" /></svg>
+            </article>
+            <article class="tile">
+              <header><span>Unique visitors</span><i class="tile-ico">◍</i></header>
+              <strong class="tile-num" id="tUnique">0</strong>
+              <svg class="spark" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true"><path id="sparkUnique" /></svg>
+            </article>
+            <article class="tile">
+              <header><span>Last 24 hours</span><i class="tile-ico">◔</i></header>
+              <strong class="tile-num" id="t24h">0</strong>
+              <span class="tile-foot" id="tLast">—</span>
+            </article>
+            <article class="tile tile-wide">
+              <header><span>Short link</span><i class="tile-ico">↗</i></header>
+              <a class="tile-link" id="tShort" href="#" target="_blank" rel="noopener">—</a>
+              <span class="tile-foot ellipsis" id="tTarget">—</span>
+            </article>
+          </div>
+
+          <!-- chart -->
+          <div class="chart-card">
+            <div class="chart-head">
+              <h3>Clicks over time</h3>
+              <span class="legend"><i></i>daily clicks</span>
+            </div>
+            <div class="chart-wrap" id="chartWrap">
+              <svg class="chart" id="chart" viewBox="0 0 780 260" preserveAspectRatio="none" role="img" aria-label="Daily clicks chart">
+                <defs>
+                  <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%"   stop-color="var(--accent)" stop-opacity=".38" />
+                    <stop offset="100%" stop-color="var(--accent)" stop-opacity="0" />
+                  </linearGradient>
+                  <linearGradient id="lineStroke" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%"   stop-color="var(--accent-3)" />
+                    <stop offset="50%"  stop-color="var(--accent)" />
+                    <stop offset="100%" stop-color="var(--accent-2)" />
+                  </linearGradient>
+                  <clipPath id="revealClip"><rect id="revealRect" x="0" y="0" width="780" height="260" /></clipPath>
+                </defs>
+                <g id="gridLines" class="grid"></g>
+                <g clip-path="url(#revealClip)">
+                  <path id="areaPath" fill="url(#areaFill)" />
+                  <path id="linePath" fill="none" stroke="url(#lineStroke)" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round" />
+                </g>
+                <g id="dots" class="dots"></g>
+                <line id="crosshair" class="crosshair" y1="0" y2="260" />
+              </svg>
+              <div class="chart-axis" id="chartAxis"></div>
+              <div class="tooltip" id="tooltip" hidden>
+                <span class="tt-day"></span><span class="tt-val"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- breakdowns -->
+          <div class="panels">
+            <section class="panel"><h3>Top referrers</h3><ul class="bars" id="barsReferrers"></ul></section>
+            <section class="panel"><h3>Devices</h3><ul class="bars" id="barsDevices"></ul></section>
+            <section class="panel"><h3>Browsers</h3><ul class="bars" id="barsBrowsers"></ul></section>
+          </div>
+        </div>
+
+        <div class="dash-empty" id="dashEmpty">
+          <div class="empty-ring" aria-hidden="true"><i></i><i></i><i></i></div>
+          <p>Shorten a link above, or load an existing code to see its analytics.</p>
+        </div>
+      </div>
+
+      <!-- recent links -->
+      <div class="recent reveal" id="recentWrap" hidden>
+        <h3>Recent links</h3>
+        <ul class="recent-list" id="recentList"></ul>
+      </div>
+    </section>
+
+    <!-- ───────────────────────── how it works ───────────────────────── -->
+    <section class="section" id="how">
+      <div class="section-head reveal">
+        <span class="kicker">Under the hood</span>
+        <h2>What happens in the 8&nbsp;ms.</h2>
+        <p>The redirect path touches Redis first, Postgres only on a miss, and writes nothing before responding.</p>
+      </div>
+
+      <div class="pipeline reveal" style="--d:120ms" aria-hidden="true">
+        <svg viewBox="0 0 900 120" class="pipe-svg">
+          <path id="pipePath" class="pipe-track" d="M40 60 H 290 M 330 60 H 570 M 610 60 H 860" />
+          <path class="pipe-flow" d="M40 60 H 860" />
+          <circle class="pipe-dot" r="5"><animateMotion dur="3.2s" repeatCount="indefinite" path="M40 60 H 860" /></circle>
+        </svg>
+      </div>
+
+      <ol class="steps">
+        <li class="step reveal" style="--d:0ms">
+          <span class="step-n">01</span>
+          <h4>Shape check</h4>
+          <p>A malformed code is rejected before Redis or Postgres is touched at all — scanners cost nothing.</p>
+        </li>
+        <li class="step reveal" style="--d:100ms">
+          <span class="step-n">02</span>
+          <h4>Cache-aside read</h4>
+          <p>Hits come from Redis. Misses — <em>including “no such code”</em> — are cached too, so a scanner can’t hammer the database.</p>
+        </li>
+        <li class="step reveal" style="--d:200ms">
+          <span class="step-n">03</span>
+          <h4>302, immediately</h4>
+          <p>A 301 would be cached by the browser and every later click would never reach us. Analytics would quietly flatline.</p>
+        </li>
+        <li class="step reveal" style="--d:300ms">
+          <span class="step-n">04</span>
+          <h4>Write after the wire</h4>
+          <p><code>setImmediate</code> defers the insert. A dropped click is acceptable; a slow redirect is not.</p>
+        </li>
+      </ol>
+
+      <div class="notes">
+        <article class="note reveal">
+          <h4><i>⚡</i> Collisions settled by the index</h4>
+          <p><code>INSERT … ON CONFLICT (code) DO NOTHING</code>, retried. Never <code>SELECT</code>-then-<code>INSERT</code>, which races between the two statements.</p>
+        </article>
+        <article class="note reveal" style="--d:100ms">
+          <h4><i>🛟</i> Redis is optional by design</h4>
+          <p>Every cache helper fails soft and the rate limiter fails open. Redis going down degrades latency, never availability.</p>
+        </article>
+        <article class="note reveal" style="--d:200ms">
+          <h4><i>🔒</i> No raw IPs, ever</h4>
+          <p>Visitors are a salted SHA-256 truncated to 32 chars; referrers are stored origin-only. Enough to count uniques, not enough to reverse.</p>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <span class="brand small"><span>snip<em>.</em></span></span>
+      <p>Node 20 · Express · Postgres · Redis — no build step, no frontend dependencies.</p>
+    </div>
+  </footer>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+  <span class="demo-badge" id="demoBadge" hidden>demo data — backend offline</span>
+
+  <script src="/static/app.js" type="module"></script>
+</body>
+</html>

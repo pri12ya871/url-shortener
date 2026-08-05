@@ -14,6 +14,7 @@ A URL shortener with click analytics. Node 20+, Express, Postgres, Redis. ESM
 docker compose up -d   # Postgres :5432 and Redis :6379
 npm start              # applies schema, then serves on :3000
 npm run dev            # same with --watch
+npm run ui             # frontend only, no database needed (see below)
 npm run migrate        # apply src/db/schema.sql on its own
 npm test               # node:test; integration tests skip without infra
 ```
@@ -26,6 +27,12 @@ There is no lint or build step.
   schema and handles graceful shutdown. Route order matters — the catch-all
   `GET /:code` redirect is registered last so it cannot shadow `/api` or
   `/health`.
+- `public/` is the frontend (plain HTML/CSS/JS, no build, no dependencies). It is
+  mounted at `/static`, never at the root — a root mount would stat the disk on
+  every `/:code` request just to miss, putting file I/O on the redirect path.
+  `static` is already in the `RESERVED` code list so no alias can shadow it. The
+  UI degrades to generated data when `/health` reports the database down, which
+  is what `npm run ui` (`scripts/ui.js`) exists to exercise.
 - `src/services/linkService.js` owns code allocation and the cache-aside read
   path. Collisions are resolved by `INSERT ... ON CONFLICT (code) DO NOTHING`
   against the unique index, retried up to `MAX_CODE_ATTEMPTS` — never by
