@@ -34,7 +34,10 @@ export function createApp() {
   // root: a root mount would stat the filesystem on every /:code request just to
   // miss, putting disk I/O on the redirect path. "static" is already a reserved
   // code, so no alias can ever shadow it.
-  app.use('/static', express.static(PUBLIC_DIR, { index: false, maxAge: '1h' }));
+  // No max-age: these filenames carry no content hash, so a far-future cache
+  // would serve stale CSS/JS for an hour after every deploy. ETag revalidation
+  // costs one conditional request and answers 304 when nothing changed.
+  app.use('/static', express.static(PUBLIC_DIR, { index: false, etag: true }));
   app.get('/', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
 
   // Registered last: the catch-all /:code must not shadow /api, /health or /static.

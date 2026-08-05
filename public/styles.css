@@ -534,8 +534,9 @@ svg { display: block; }
 }
 .tile-link:hover { text-decoration: underline; }
 .tile-wide { grid-column: span 1; }
-.spark { width: 100%; height: 28px; margin-top: 2px; }
-.spark path {
+/* NB: not `.spark` — that is the eyebrow's 7px dot up in the hero. */
+.sparkline { width: 100%; height: 28px; margin-top: 2px; }
+.sparkline path {
   fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linecap: round; opacity: .6;
   stroke-dasharray: var(--len, 300); stroke-dashoffset: var(--len, 300);
   animation: draw 1.3s var(--ease-out) forwards .2s;
@@ -739,6 +740,6 @@ svg { display: block; }
   .dots circle { r: 3; }
   #revealRect { transform: scaleX(1); }
   #linePath { stroke-dashoffset: 0; }
-  .spark path { stroke-dashoffset: 0; }
+  .sparkline path { stroke-dashoffset: 0; }
   .pointer-glow { display: none; }
 }
