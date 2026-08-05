@@ -1,0 +1,7 @@
+node_modules/
+.env
+*.log
+
+# Local Claude Code state: machine-specific paths and permission rules that
+# have contained API keys. Never commit. (CLAUDE.md at the repo root is fine.)
+.claude/
