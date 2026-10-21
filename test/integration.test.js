@@ -41,10 +41,13 @@ try {
   await new Promise((resolve) => server.once('listening', resolve));
   baseUrl = `http://127.0.0.1:${server.address().port}`;
   skip = false;
-} catch {
+} catch (err) {
   // Tear the clients down now: ioredis reconnects forever by default, which
   // would keep the event loop alive and hang the runner after the skips.
   await teardown();
+  // CI sets REQUIRE_INFRA so a broken service container fails the build
+  // instead of passing it with every integration test skipped.
+  if (process.env.REQUIRE_INFRA) throw err;
 }
 
 after(teardown);
